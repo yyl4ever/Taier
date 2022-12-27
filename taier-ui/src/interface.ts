@@ -356,10 +356,17 @@ export interface ISourceMapProps extends ISourceFormField {
 export interface IDataColumnsProps {
 	comment?: string;
 	isPart?: boolean;
+	/**
+	 * Generally, it's the unique key for rows
+	 */
 	key: string | number;
 	part?: boolean;
 	type: string;
 	value?: string;
+	name?: string;
+	/**
+	 * It's the unique key in FTP for rows
+	 */
 	index?: string;
 	cf?: string;
 	format?: string;
@@ -368,7 +375,7 @@ export interface IDataColumnsProps {
 /**
  * 前端表单保存的值
  */
-export interface ISourceFormField {
+export interface ISourceFormField extends ISourceFieldWithFTP {
 	sourceId?: number;
 	table?: string | string[];
 	/**
@@ -379,9 +386,6 @@ export interface ISourceFormField {
 	splitPK?: string;
 	extralConfig?: string;
 	increColumn?: string | number;
-	/**
-	 * Only used in HDFS
-	 */
 	path?: string;
 	/**
 	 * Only used in HDFS
@@ -425,6 +429,22 @@ export interface ISourceFormField {
 	 */
 	indexType?: string;
 	query?: string;
+}
+
+export interface ISourceFieldWithFTP {
+	path?: string;
+	/**
+	 * It'll rename to fileType when task submitted
+	 */
+	['fileType|FTP']?: string;
+	/**
+	 * It'll rename to fieldDelimiter when task submitted
+	 */
+	['fieldDelimiter|FTP']?: string;
+	/**
+	 * 是否包含表头
+	 */
+	isFirstLineHeader?: boolean;
 }
 
 /**

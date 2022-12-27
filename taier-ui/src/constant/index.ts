@@ -255,7 +255,15 @@ export enum TASK_TYPE_ENUM {
 	/**
 	 * Python Spark
 	 */
-	PY_SPARK = 16
+	PY_SPARK = 16,
+	MYSQL = 17,
+	GREENPLUM = 18,
+	GAUSS_DB = 19,
+	POSTGRE_SQL = 20,
+	SQL_SERVER = 21,
+	TiDB = 22,
+	VERTICA = 23,
+	MAX_COMPUTE = 24,
 }
 
 /**
@@ -1600,3 +1608,11 @@ export enum PythonVersionKind {
 	py2 = 2,
 	py3 = 3,
 }
+
+/**
+ * For distinguish the same name but used in different dataSource type.
+ *
+ * There is a `path` field both in FTP and HDFS, but the two fileds are completely different,
+ * So the one named `path` and another named `path|FTP`
+ */
+export const NAME_SEPARATOR = '|';

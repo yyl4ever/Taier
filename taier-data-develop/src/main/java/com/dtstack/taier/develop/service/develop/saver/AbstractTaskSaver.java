@@ -34,7 +34,6 @@ import com.dtstack.taier.dao.domain.TaskParamTemplate;
 import com.dtstack.taier.dao.mapper.DevelopTaskMapper;
 import com.dtstack.taier.develop.dto.devlop.TaskResourceParam;
 import com.dtstack.taier.develop.dto.devlop.TaskVO;
-import com.dtstack.taier.develop.enums.develop.FlinkVersion;
 import com.dtstack.taier.develop.mapstruct.vo.TaskMapstructTransfer;
 import com.dtstack.taier.develop.service.develop.ITaskSaver;
 import com.dtstack.taier.develop.service.develop.impl.DevelopTaskParamService;
@@ -45,8 +44,10 @@ import com.dtstack.taier.pluginapi.constrant.ConfigConstant;
 import com.dtstack.taier.scheduler.executor.DatasourceOperator;
 import com.dtstack.taier.scheduler.service.ClusterService;
 import com.dtstack.taier.scheduler.service.ScheduleActionService;
+import com.dtstack.taier.scheduler.service.ScheduleDictService;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
+import org.apache.commons.lang.BooleanUtils;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -121,9 +122,14 @@ public abstract class AbstractTaskSaver implements ITaskSaver {
     @Autowired
     private DatasourceOperator datasourceOperator;
 
+    @Autowired
+    private ScheduleDictService scheduleDictService;
+
     public abstract TaskResourceParam beforeProcessing(TaskResourceParam taskResourceParam);
 
-    public abstract void afterProcessing(TaskResourceParam taskResourceParam, TaskVO taskVO);
+    public void afterProcessing(TaskResourceParam taskResourceParam, TaskVO taskVO){
+
+    }
 
 
     /**
@@ -139,9 +145,19 @@ public abstract class AbstractTaskSaver implements ITaskSaver {
 
         TaskVO taskVO = updateTaskInfo(taskResourceParam);
 
+        updateTaskTask(taskVO,taskResourceParam);
+
         afterProcessing(taskResourceParam, taskVO);
 
         return taskVO;
+    }
+
+    private void updateTaskTask(TaskVO task,TaskResourceParam taskResourceParam) {
+        // 如果是修改任务的基本属性（目录、名称），禁止处理任务信息
+        if (BooleanUtils.isTrue(taskResourceParam.getEditBaseInfo())) {
+            return;
+        }
+        developTaskTaskService.addOrUpdateTaskTask(task.getId(), task.getDependencyTasks());
     }
 
     @Override
@@ -197,10 +213,10 @@ public abstract class AbstractTaskSaver implements ITaskSaver {
         Task specialTask1 = new Task();
         // 转换环境参数
         if (!Objects.equals(EScheduleJobType.WORK_FLOW.getVal(), taskVO.getTaskType())) {
-            String convertParams = convertParams(FlinkVersion.getVersion(specialTask.getComponentVersion()),
-                    FlinkVersion.getVersion(taskVO.getComponentVersion()),
-                    taskVO.getTaskParams(), taskVO.getTaskType());
-            taskVO.setTaskParams(convertParams);
+            if (StringUtils.isNotBlank(specialTask.getComponentVersion()) && !specialTask.getComponentVersion().equals(taskVO.getComponentVersion())) {
+                taskVO.setTaskParams(getTaskParamByTask(taskVO));
+            }
+
 
             TaskMapstructTransfer.INSTANCE.taskVOTOTask(taskVO, specialTask1);
             developTaskService.updateById(specialTask1);
@@ -283,9 +299,7 @@ public abstract class AbstractTaskSaver implements ITaskSaver {
         task.setJobId(actionService.generateUniqueSign());
         task.setGmtCreate(Timestamp.valueOf(LocalDateTime.now()));
         if (StringUtils.isBlank(task.getTaskParams())) {
-            TaskParamTemplate taskTemplate = taskTemplateService.getTaskTemplate(task.getTaskType(), FlinkVersion.FLINK_112.getType());
-            String content = taskTemplate == null ? "" : taskTemplate.getParams();
-            task.setTaskParams(content);
+            task.setTaskParams(getTaskParamByTask(task));
         }
         task.setScheduleStatus(EScheduleStatus.NORMAL.getVal());
         task.setScheduleConf(task.getScheduleConf());
@@ -299,20 +313,10 @@ public abstract class AbstractTaskSaver implements ITaskSaver {
         developTaskService.save(task);
     }
 
-    /**
-     * 转化环境参数，不同版本之间切换需要刷新环境参数信息
-     *
-     * @param before       转化前的 flink 版本
-     * @param after        转化后的 flink 版本
-     * @param paramsBefore 环境参数
-     * @return 转化后的环境参数
-     */
-    private String convertParams(FlinkVersion before, FlinkVersion after, String paramsBefore, Integer taskType) {
-        // 版本一致不需要进行转换
-        if (before.equals(after)) {
-            return paramsBefore;
-        }
-        return taskTemplateService.getTaskTemplate( taskType, after.getType()).getParams();
+    private String getTaskParamByTask(TaskVO task) {
+        String versionName = scheduleDictService.convertVersionNameToValue(task.getComponentVersion(), task.getTaskType(), null);
+        TaskParamTemplate taskTemplate = taskTemplateService.getTaskTemplate(task.getTaskType(), versionName);
+        return taskTemplate == null ? "" : taskTemplate.getParams();
     }
 
     public List<TaskVO> getTaskByIds(List<Long> taskIdArray) {
